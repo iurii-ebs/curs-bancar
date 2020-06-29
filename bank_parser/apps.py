@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class BankParserConfig(AppConfig):
-    name = 'apps.bank_parser'
+    name = 'bank_parser'

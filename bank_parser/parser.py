@@ -11,6 +11,8 @@ today = datetime.date.today().strftime("%d.%m.%Y")
 date_raw = today.split('.')
 valid_date = date_raw[2] + "-" + date_raw[1] + "-" + date_raw[0]
 
+
+
 bank_list = ['MAIB', 'MICB', 'Victoria', 'Mobias', 'BNM']
 
 

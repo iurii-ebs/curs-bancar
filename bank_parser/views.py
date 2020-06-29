@@ -5,10 +5,17 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 
+import datetime
+import requests
+from bs4 import BeautifulSoup
+
 from .serializers import BankSerializer, CurrentRatesSerializer, RatesHistorySerializer
 from .parser import BNMParser, Parser
 from .models import Bank, Currency, RatesHistory
-from .parser import valid_date
+
+today = datetime.date.today().strftime("%d.%m.%Y")
+date_raw = today.split('.')
+valid_date = date_raw[2] + "-" + date_raw[1] + "-" + date_raw[0]
 
 
 class ParseBankView(GenericAPIView):
@@ -19,19 +26,11 @@ class ParseBankView(GenericAPIView):
     queryset = Bank.objects.all()
 
     def get(self, request, short_name):
+        if not self.queryset.all().exists():
+            self.create_banks()
         # fill currecies table if empty
         if not Currency.objects.all().exists():
-            currencies = BNMParser()
-            currencies.parse()
-            for currency in currencies.rates:
-                new_currency = Currency()
-                try:
-                    Currency.objects.get(abbr=currency['abbr'])
-                    pass
-                except ObjectDoesNotExist:
-                    new_currency.abbr = currency['abbr']
-                    new_currency.name = currency['name']
-                    new_currency.save()
+            self.create_currencies()
 
         if short_name == 'all':
             for bank in self.queryset.all():
@@ -54,14 +53,12 @@ class ParseBankView(GenericAPIView):
 
     @staticmethod
     def parse_bank(bank):
-        executor = Parser.executor[bank.short_name.lower()]
+        executor = Parser.executor[bank.short_name.lower()]()
 
-        executor_obj = executor()
-
-        if not RatesHistory.objects.filter(date=valid_date, bank=executor_obj.bank).exists():
+        if not RatesHistory.objects.filter(date=valid_date, bank=executor.bank).exists():
             try:
-                executor_obj.parse()
-                for rate in executor_obj.rates:
+                executor.parse()
+                for rate in executor.rates:
                     new_rate = RatesHistory(
                         currency=Currency.objects.get(abbr=rate['abbr']),
                         bank=bank,
@@ -71,6 +68,59 @@ class ParseBankView(GenericAPIView):
                     new_rate.save()
             except ValueError:
                 return Response({'error': 'Not exists data try later'})
+
+    @staticmethod
+    def create_banks():
+        banks_list = [
+            {
+                'name': 'Banca Națională a Moldovei',
+                'short_name': 'BNM',
+                'url': 'https://www.bnm.md/en/official_exchange_rates?get_xml=1&date='
+            },
+            {
+                'name': 'Moldova Agroindbank',
+                'short_name': 'MAIB',
+                'url': 'https://www.maib.md/en/start/'
+            },
+            {
+                'name': 'Moldindconbank',
+                'short_name': 'MICB',
+                'url': 'https://www.micb.md/'
+            },
+            {
+                'name': 'Victoria Bank',
+                'short_name': 'Victoria',
+                'url': 'https://www.victoriabank.md/ro/currency-history'
+            },
+            {
+                'name': 'Mobias Banca',
+                'short_name': 'Mobias',
+                'url': 'https://mobiasbanca.md/exrates'
+            },
+        ]
+        for bank in banks_list:
+            Bank.objects.create(
+                name=bank['name'],
+                short_name=bank['short_name'],
+                url=bank['url']
+            )
+
+    @staticmethod
+    def create_currencies():
+        bnm = Bank.objects.get(short_name__iexact='bnm')
+        url = bnm.url + today
+
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text, 'lxml')
+        currency_raw = soup.find_all("valute")
+
+        for currency in currency_raw:
+            abbr = currency.find("charcode").string
+            name = currency.find("name").string
+            Currency.objects.create(
+                abbr=abbr,
+                name=name
+            )
 
 
 class BankListView(GenericAPIView):
@@ -90,10 +140,11 @@ class BestPriceView(GenericAPIView):
     permission_classes = [AllowAny, ]
     authentication_classes = ()
 
-    bnm = Bank.objects.get(short_name__iexact='bnm')
-    queryset = RatesHistory.objects.filter(date=valid_date).exclude(bank=bnm)
+    queryset = RatesHistory.objects.filter(date=valid_date)
 
     def get(self, request, abbr):
+        bnm = Bank.objects.get(short_name__iexact='bnm')
+        self.queryset = RatesHistory.objects.filter(date=valid_date).exclude(bank=bnm)
         currency = get_object_or_404(Currency, abbr__iexact=abbr)
         rates = self.queryset.filter(currency=currency)
 
