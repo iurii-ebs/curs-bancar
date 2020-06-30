@@ -1,8 +1,8 @@
-from django.core.exceptions import ObjectDoesNotExist
+# from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 
 import datetime
@@ -26,9 +26,10 @@ class ParseBankView(GenericAPIView):
     queryset = Bank.objects.all()
 
     def get(self, request, short_name):
+        # fill banks if not exists
         if not self.queryset.all().exists():
             self.create_banks()
-        # fill currecies table if empty
+        # fill currencies table if empty
         if not Currency.objects.all().exists():
             self.create_currencies()
 
@@ -38,7 +39,7 @@ class ParseBankView(GenericAPIView):
                     self.parse_bank(bank)
                 except AttributeError:
                     pass
-            rates = RatesHistory.objects.filter(date=valid_date)
+            rates = RatesHistory.objects.filter(date=valid_date, bank__is_public=True)
 
         else:
             bank = get_object_or_404(Bank, short_name__iexact=short_name)
@@ -46,7 +47,7 @@ class ParseBankView(GenericAPIView):
                 self.parse_bank(bank)
             except AttributeError:
                 return Response({'error': 'Not exists data try later'})
-            rates = RatesHistory.objects.filter(date=valid_date, bank=bank)
+            rates = RatesHistory.objects.filter(date=valid_date, bank__short_name__iexact=short_name)
         serializer = CurrentRatesSerializer(rates, many=True)
 
         return Response(serializer.data)
@@ -59,13 +60,12 @@ class ParseBankView(GenericAPIView):
             try:
                 executor.parse()
                 for rate in executor.rates:
-                    new_rate = RatesHistory(
+                    new_rate = RatesHistory.objects.create(
                         currency=Currency.objects.get(abbr=rate['abbr']),
                         bank=bank,
                         rate_sell=rate['rate_sell'],
                         rate_buy=rate['rate_buy']
                     )
-                    new_rate.save()
             except ValueError:
                 return Response({'error': 'Not exists data try later'})
 
@@ -75,7 +75,7 @@ class ParseBankView(GenericAPIView):
             {
                 'name': 'Banca Națională a Moldovei',
                 'short_name': 'BNM',
-                'url': 'https://www.bnm.md/en/official_exchange_rates?get_xml=1&date='
+                'url': 'https://www.bnm.md/en/official_exchange_rates?get_xml=1&date=',
             },
             {
                 'name': 'Moldova Agroindbank',
@@ -99,10 +99,15 @@ class ParseBankView(GenericAPIView):
             },
         ]
         for bank in banks_list:
+            public = True
+            if bank['short_name'].lower() == 'bnm':
+                public = False
+
             Bank.objects.create(
                 name=bank['name'],
                 short_name=bank['short_name'],
-                url=bank['url']
+                url=bank['url'],
+                is_public=public
             )
 
     @staticmethod
@@ -115,11 +120,9 @@ class ParseBankView(GenericAPIView):
         currency_raw = soup.find_all("valute")
 
         for currency in currency_raw:
-            abbr = currency.find("charcode").string
-            name = currency.find("name").string
             Currency.objects.create(
-                abbr=abbr,
-                name=name
+                abbr=currency.find("charcode").string,
+                name=currency.find("name").string
             )
 
 
@@ -140,24 +143,21 @@ class BestPriceView(GenericAPIView):
     permission_classes = [AllowAny, ]
     authentication_classes = ()
 
-    queryset = RatesHistory.objects.filter(date=valid_date)
+    queryset = RatesHistory.objects.filter(date=valid_date, bank__is_public=True)
 
     def get(self, request, abbr):
-        bnm = Bank.objects.get(short_name__iexact='bnm')
-        self.queryset = RatesHistory.objects.filter(date=valid_date).exclude(bank=bnm)
+        if not self.queryset.all().exists():
+            ParseBankView().get(request, short_name='all')
         currency = get_object_or_404(Currency, abbr__iexact=abbr)
         rates = self.queryset.filter(currency=currency)
 
-        try:
-            best_sell = CurrentRatesSerializer(self.get_best_sell(rates, currency), many=True).data
-            best_buy = CurrentRatesSerializer(self.get_best_buy(rates, currency), many=True).data
-            answer = {
-                'best_sell': best_sell,
-                'best_buy': best_buy
-            }
-            return Response(answer)
-        except IndexError:
-            return Response({'error': 'not exists data, need to parse'})
+        best_sell = CurrentRatesSerializer(self.get_best_sell(rates, currency), many=True).data
+        best_buy = CurrentRatesSerializer(self.get_best_buy(rates, currency), many=True).data
+        answer = {
+            'best_sell': best_sell,
+            'best_buy': best_buy
+        }
+        return Response(answer)
 
     @staticmethod
     def get_best_sell(rates, currency):

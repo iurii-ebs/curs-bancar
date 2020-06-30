@@ -5,6 +5,7 @@ class Bank(models.Model):
     name = models.CharField(max_length=50)
     short_name = models.CharField(max_length=20)
     url = models.CharField(max_length=150)
+    is_public = models.BooleanField(default=False)
 
     def __str__(self):
         return self.short_name
