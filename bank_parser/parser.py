@@ -7,10 +7,13 @@ import datetime
 
 from .models import Bank, Currency
 
-today = datetime.date.today().strftime("%d.%m.%Y")
-date_raw = today.split('.')
-valid_date = date_raw[2] + "-" + date_raw[1] + "-" + date_raw[0]
 
+def today_bnm():
+    return datetime.date.today().strftime("%d.%m.%Y")
+
+
+def today_db():
+    return datetime.date.today().strftime("%Y-%m-%d")
 
 
 bank_list = ['MAIB', 'MICB', 'Victoria', 'Mobias', 'BNM']
@@ -28,9 +31,10 @@ class Parser(ABC):
         self.bank = get_object_or_404(Bank, short_name__iexact=self.short_name)
         self.url = self.bank.url
         self.rates = list()
+        self.date_string = ''
 
     def make_soup(self):
-        r = requests.get(self.url)
+        r = requests.get(self.url + self.date_string)
         self.soup = BeautifulSoup(r.text, 'lxml')
 
     @abstractmethod
@@ -52,7 +56,7 @@ class Parser(ABC):
         }
 
     def read_standard_table(self, table):
-        tbody = table.find('tbody')
+        tbody = table.find_all('tbody')[0]
         for tr in tbody.find_all('tr'):
             tds = tr.find_all('td')
             abbr = tds[0].text.strip()
@@ -69,10 +73,10 @@ class BNMParser(Parser):
 
     def __init__(self):
         super().__init__()
-        self.url += today
-        self.make_soup()
 
     def parse(self):
+        self.valid_url_date()
+        self.make_soup()
         currency_raw = self.soup.find_all("valute")
 
         for currency in currency_raw:
@@ -83,6 +87,11 @@ class BNMParser(Parser):
 
             self.rates.append(self.create_rate(abbr, name, rate_sell, rate_buy))
 
+    def valid_url_date(self):
+        if '-' in self.date_string:
+            date_raw = self.date_string.split('-')
+            self.date_string = date_raw[2] + '.' + date_raw[1] + '.' + date_raw[0]
+
 
 @Parser.add_sub
 class MAIBParser(Parser):
@@ -90,10 +99,10 @@ class MAIBParser(Parser):
 
     def __init__(self):
         super().__init__()
-        self.make_soup()
 
     def parse(self):
-        table = self.soup.find('table', class_='tb1')
+        self.make_soup()
+        table = self.soup.find_all('table', class_='tb2')[2]
 
         self.read_standard_table(table)
 
@@ -104,13 +113,22 @@ class MICBParser(Parser):
 
     def __init__(self):
         super().__init__()
-        self.make_soup()
 
     def parse(self):
-        data_raw = self.soup.find('div', id='currancy-rates')
-        table = data_raw.find('table')
+        data = {'rate_date': self.date_string, 'fm_exchange_id': '62'}
+        r = requests.post(self.url, data)
+        self.soup = BeautifulSoup(r.text)
+        table = self.soup.find_all('table')[1]
 
-        self.read_standard_table(table)
+        # iterate over all tr tags, except first here is table header
+        for tr in table.find_all('tr')[1:]:
+            tds = tr.find_all('td')
+            abbr = tds[0].text.strip()
+            rate_sell = float(tds[2].text.strip())
+            rate_buy = float(tds[3].text.strip())
+            name = Currency.objects.get(abbr=abbr).name
+
+            self.rates.append(self.create_rate(abbr, name, rate_sell, rate_buy))
 
 
 @Parser.add_sub
@@ -134,11 +152,13 @@ class MobiasParser(Parser):
 
     def __init__(self):
         super().__init__()
-        self.make_soup()
 
     def parse(self):
+        self.valid_url_date()
+        self.make_soup()
+
         currencies = ['EUR', 'USD', 'RUB']
-        table = self.soup.find('table', id='rates-dynamics')
+        table = self.soup.find_all('table', id='rates-dynamics')[0]
         tbody = table.find('tbody')
         trs = tbody.find_all('tr')
         for tr in trs:
@@ -150,3 +170,7 @@ class MobiasParser(Parser):
                 name = Currency.objects.get(abbr=abbr).name
 
                 self.rates.append(self.create_rate(abbr, name, rate_sell, rate_buy))
+
+    def valid_url_date(self):
+        date_raw = self.date_string.split('-')
+        self.date_string = date_raw[2] + '-' + date_raw[1] + '-' + date_raw[0]
