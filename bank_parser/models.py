@@ -1,4 +1,5 @@
 from django.db import models
+import datetime
 
 
 class Bank(models.Model):
@@ -24,7 +25,7 @@ class RatesHistory(models.Model):
     bank = models.ForeignKey(Bank, related_name='rates', on_delete=models.CASCADE)
     rate_sell = models.FloatField()
     rate_buy = models.FloatField()
-    date = models.DateField(db_index=True, auto_now_add=True)
+    date = models.DateField(db_index=True, default=datetime.date.today().strftime('%Y-%m-%d'))
 
     def __str__(self):
         return f"{self.bank} \t {self.currency} \t {self.rate_sell} \t {self.rate_buy} \t {self.date}"
