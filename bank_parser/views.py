@@ -37,6 +37,8 @@ class ParseBankView(GenericAPIView):
                         self.parse_bank(bank)
                     except AttributeError:
                         pass
+                    except IndexError:
+                        pass
                 rates = RatesHistory.objects.filter(date=self.date, bank__is_public=True)
 
             else:
