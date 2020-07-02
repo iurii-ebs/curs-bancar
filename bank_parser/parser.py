@@ -16,6 +16,26 @@ def today_db():
     return datetime.date.today().strftime("%Y-%m-%d")
 
 
+def verify_date(date):
+    today = today_db().split('-')
+    value = date.split('-')
+
+    if value[0] < today[0]:
+        return True
+    elif value[0] == today[0]:
+        if value[1] < today[1]:
+            return True
+        elif value[1] == today[1]:
+            if value[2] <= today[2]:
+                return True
+            else:
+                return False
+        else:
+            return False
+    else:
+        return False
+
+
 bank_list = ['MAIB', 'MICB', 'Victoria', 'Mobias', 'BNM']
 
 
