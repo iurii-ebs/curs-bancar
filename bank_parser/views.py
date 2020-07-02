@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
@@ -8,20 +9,22 @@ import requests
 from bs4 import BeautifulSoup
 
 from .serializers import BankSerializer, CurrentRatesSerializer, RatesHistorySerializer
-from .parser import Parser, today_bnm, today_db
+from .parser import Parser, today_bnm, today_db, verify_date
 from .models import Bank, Currency, RatesHistory
 
 
 class ParseBankView(GenericAPIView):
     serializer_class = BankSerializer
-    permission_classes = [AllowAny, ]
-    authentication_classes = ()
+    permission_classes = ([IsAuthenticated])
+    authentication_classes = ([JWTAuthentication])
 
     queryset = Bank.objects.all()
     date = ''
 
     def get(self, request, short_name):
         self.date = (request.GET.get('date') or today_db())
+        if not verify_date(self.date):
+            return Response({'error': 'can\'t predict', 'date': self.date})
 
         # fill banks if not exists
         if not self.queryset.all().exists():
@@ -55,7 +58,7 @@ class ParseBankView(GenericAPIView):
 
         return Response(serializer.data)
 
-    def parse_bank(self, bank, date=''):
+    def parse_bank(self, bank):
         executor = Parser.executor[bank.short_name.lower()]()
         executor.date_string = self.date
 
@@ -132,8 +135,8 @@ class ParseBankView(GenericAPIView):
 
 class BankListView(GenericAPIView):
     serializer_class = BankSerializer
-    permission_classes = [AllowAny, ]
-    authentication_classes = ()
+    permission_classes = ([IsAuthenticated])
+    authentication_classes = ([JWTAuthentication])
 
     queryset = Bank.objects.all()
 
@@ -144,8 +147,8 @@ class BankListView(GenericAPIView):
 
 class BestPriceView(GenericAPIView):
     serializer_class = RatesHistorySerializer
-    permission_classes = [AllowAny, ]
-    authentication_classes = ()
+    permission_classes = ([IsAuthenticated])
+    authentication_classes = ([JWTAuthentication])
 
     date = ''
 

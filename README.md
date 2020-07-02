@@ -11,3 +11,4 @@ banks/best/"currency abbr"/ - find best selling and buy prices, returns JSON wit
 
 
 GET request data {'date': 'YYYY-MM-DD'} will return info for selected date
+
