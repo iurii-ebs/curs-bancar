@@ -137,7 +137,7 @@ class MICBParser(Parser):
     def parse(self):
         data = {'rate_date': self.date_string, 'fm_exchange_id': '62'}
         r = requests.post(self.url, data)
-        self.soup = BeautifulSoup(r.text)
+        self.soup = BeautifulSoup(r.text, 'lxml')
         table = self.soup.find_all('table')[1]
 
         # iterate over all tr tags, except first here is table header
