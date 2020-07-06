@@ -1,136 +1,78 @@
 from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-
-import requests
-from bs4 import BeautifulSoup
+from django.db.utils import OperationalError
 
 from .serializers import BankSerializer, CurrentRatesSerializer, RatesHistorySerializer
-from .parser import Parser, today_bnm, today_db, verify_date
+from .tasks import parse_bank, save_data
 from .models import Bank, Currency, RatesHistory
+from .utils import (today_db,
+                    verify_date,
+                    check_banks,
+                    create_currencies,
+                    get_best_buy,
+                    get_best_sell,
+                    waiting_msg,
+                    last_day)
 
 
 class ParseBankView(GenericAPIView):
     serializer_class = BankSerializer
     permission_classes = ([IsAuthenticated])
+    # permission_classes = ([AllowAny])
     authentication_classes = ([JWTAuthentication])
 
     queryset = Bank.objects.all()
-    date = ''
 
     def get(self, request, short_name):
-        self.date = (request.GET.get('date') or today_db())
-        if not verify_date(self.date):
-            return Response({'error': 'can\'t predict', 'date': self.date})
+        date = (request.GET.get('date') or today_db())
+
+        if not verify_date(date):
+            return Response({'error': 'can\'t predict', 'date': date})
 
         # fill banks if not exists
-        if not self.queryset.all().exists():
-            self.create_banks()
+        check_banks()
         # fill currencies table if empty
         if not Currency.objects.all().exists():
-            self.create_currencies()
+            create_currencies()
 
         try:
-            if short_name == 'all':
-                for bank in self.queryset.all():
-                    try:
-                        self.parse_bank(bank)
-                    except AttributeError:
-                        pass
-                    except IndexError:
-                        pass
-                rates = RatesHistory.objects.filter(date=self.date, bank__is_public=True)
+            public_only = True
+            if not short_name == 'all':
+                self.queryset = Bank.objects.filter(short_name__iexact=short_name)
+                public_only = False
 
+            have_data = True
+            for bank in self.queryset.all():
+                if not RatesHistory.objects.filter(date=date, bank=bank).exists():
+                    have_data = False
+                    try:
+                        rates = parse_bank.apply_async((bank.short_name, date), queue='parse_data')
+                        save_data.apply_async((date, rates.get()), queue='save_data')
+
+                    except TypeError:
+                        continue
+                    except AttributeError:
+                        return Response({'error': 'Data not found'})
+
+            # Return response without waiting for task finishing
+            if not have_data:
+                return Response(waiting_msg)
+
+            if public_only:
+                rates = RatesHistory.objects.filter(date=date, bank__is_public=public_only, bank__in=self.queryset)
             else:
-                bank = get_object_or_404(Bank, short_name__iexact=short_name)
-                self.parse_bank(bank)
-                rates = RatesHistory.objects.filter(date=self.date, bank__short_name__iexact=short_name)
+                rates = RatesHistory.objects.filter(date=date, bank__in=self.queryset)
 
         except ValidationError:
             return Response({'error': 'Check the date format YYYY-MM-DD'})
-        except AttributeError:
-            return Response({'error': 'Data not found'})
 
         serializer = CurrentRatesSerializer(rates, many=True)
 
         return Response(serializer.data)
-
-    def parse_bank(self, bank):
-        executor = Parser.executor[bank.short_name.lower()]()
-        executor.date_string = self.date
-
-        try:
-            if not RatesHistory.objects.filter(date=self.date, bank=executor.bank).exists():
-                executor.parse()
-                for rate in executor.rates:
-                    RatesHistory.objects.create(
-                        currency=Currency.objects.get(abbr=rate['abbr']),
-                        bank=bank,
-                        rate_sell=rate['rate_sell'],
-                        rate_buy=rate['rate_buy'],
-                        date=self.date
-                    )
-        except:
-            raise
-
-    @staticmethod
-    def create_banks():
-        banks_list = [
-            {
-                'name': 'Banca Națională a Moldovei',
-                'short_name': 'BNM',
-                'url': 'https://www.bnm.md/en/official_exchange_rates?get_xml=1&date=',
-            },
-            {
-                'name': 'Moldova Agroindbank',
-                'short_name': 'MAIB',
-                'url': 'https://www.maib.md/en/curs-valutar/fx/'
-            },
-            {
-                'name': 'Moldindconbank',
-                'short_name': 'MICB',
-                'url': 'https://www.micb.md/bul-new/?'
-            },
-            {
-                'name': 'Victoria Bank',
-                'short_name': 'Victoria',
-                'url': 'https://www.victoriabank.md/ro/currency-history'
-            },
-            {
-                'name': 'Mobias Banca',
-                'short_name': 'Mobias',
-                'url': 'https://mobiasbanca.md/exrates/'
-            },
-        ]
-        for bank in banks_list:
-            public = True
-            if bank['short_name'].lower() == 'bnm':
-                public = False
-
-            Bank.objects.create(
-                name=bank['name'],
-                short_name=bank['short_name'],
-                url=bank['url'],
-                is_public=public
-            )
-
-    @staticmethod
-    def create_currencies():
-        bnm = Bank.objects.get(short_name__iexact='bnm')
-        url = bnm.url + today_bnm()
-
-        r = requests.get(url)
-        soup = BeautifulSoup(r.text, 'lxml')
-        currency_raw = soup.find_all("valute")
-
-        for currency in currency_raw:
-            Currency.objects.create(
-                abbr=currency.find("charcode").string,
-                name=currency.find("name").string
-            )
 
 
 class BankListView(GenericAPIView):
@@ -163,34 +105,10 @@ class BestPriceView(GenericAPIView):
         currency = get_object_or_404(Currency, abbr__iexact=abbr)
         rates = self.queryset.filter(currency=currency)
 
-        best_sell = CurrentRatesSerializer(self.get_best_sell(rates, currency), many=True).data
-        best_buy = CurrentRatesSerializer(self.get_best_buy(rates, currency), many=True).data
+        best_sell = CurrentRatesSerializer(get_best_sell(rates, currency), many=True).data
+        best_buy = CurrentRatesSerializer(get_best_buy(rates, currency), many=True).data
         answer = {
             'best_sell': best_sell,
             'best_buy': best_buy
         }
         return Response(answer)
-
-    @staticmethod
-    def get_best_sell(rates, currency):
-        # get first element as best, and compare with rest rates[1:]
-        best_rates = [rates[0]]
-        for rate in rates[1:]:
-            if rate.rate_sell > best_rates[0].rate_sell:
-                best_rates = list()
-                best_rates.append(rate)
-            elif rate.rate_sell == best_rates[0].rate_sell:
-                best_rates.append(rate)
-        return best_rates
-
-    @staticmethod
-    def get_best_buy(rates, currency):
-        # get first element as best, and compare with rest rates[1:]
-        best_rates = [rates[0]]
-        for rate in rates[1:]:
-            if rate.rate_buy < best_rates[0].rate_buy:
-                best_rates = list()
-                best_rates.append(rate)
-            elif rate.rate_buy == best_rates[0].rate_buy:
-                best_rates.append(rate)
-        return best_rates

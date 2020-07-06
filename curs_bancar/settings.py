@@ -92,14 +92,21 @@ WSGI_APPLICATION = 'curs_bancar.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql_psycopg2',
+#         'NAME': 'curs_bancar',
+#         'USER': os.getenv('DB_USER'),
+#         'PASSWORD': os.getenv('DB_PASSWORD'),
+#         'HOST': os.getenv('DB_HOST'),
+#         'PORT': '5432',
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'curs_bancar',
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': '5432',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
 
@@ -138,3 +145,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+RABBIT_CREDENTIALS = 'guest:guest'
+RABBIT_HOST = '127.0.0.1'
+RABBIT_PORT = '5672'
+
+CELERY_BROKER_URL = 'amqp://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT
+CELERY_RESULT_BACKEND = 'rpc://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT
+
+CELERY_CREATE_MISSING_QUEUES = True
+
