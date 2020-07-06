@@ -1,8 +1,7 @@
 import os
 from celery import Celery
 from celery.schedules import crontab
-from celery.schedules import crontab
-from kombu import Queue
+
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'curs_bancar.settings')
 
@@ -12,11 +11,13 @@ app.autodiscover_tasks()
 
 app.conf.timezone = 'Europe/Chisinau'
 
+# Schedule settings: start task every day at 9:30 AM
 app.conf.beat_schedule = {
     'daily_parsing': {
-        'task': 'tasks.parse_beat_banks',
-        # 'schedule': crontab(minute=30, hour=9),
-        'schedule': crontab(),
+        'task': 'bank_parser.tasks.parse_all_beat',
+        'schedule': crontab(minute=30, hour=9),
+        # 'schedule': crontab(),
         'args': ()
     },
 }
+

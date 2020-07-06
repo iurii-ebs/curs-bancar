@@ -60,7 +60,6 @@ class BNMParser(Parser):
 
         for currency in currency_raw:
             abbr = currency.find("charcode").string
-            # name = currency.find("name").string
             rate_sell = float(currency.find("value").string)
             self.append_rate(abbr, rate_sell)
         return self.rates

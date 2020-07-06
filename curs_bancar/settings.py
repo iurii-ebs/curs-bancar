@@ -40,8 +40,11 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'rest_framework_swagger',
+    'django_celery_beat',
 
     'bank_parser',
+
+
 ]
 
 REST_FRAMEWORK = {
@@ -146,12 +149,11 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-RABBIT_CREDENTIALS = 'guest:guest'
-RABBIT_HOST = '127.0.0.1'
-RABBIT_PORT = '5672'
+RABBIT_CREDENTIALS = os.getenv('RABBIT_CREDENTIALS')
+RABBIT_HOST = os.getenv('RABBIT_HOST')
+RABBIT_PORT = os.getenv('RABBIT_PORT')
 
 CELERY_BROKER_URL = 'amqp://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT
 CELERY_RESULT_BACKEND = 'rpc://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT
 
 CELERY_CREATE_MISSING_QUEUES = True
-

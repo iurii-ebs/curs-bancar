@@ -17,23 +17,9 @@ def today_db():
 
 def verify_date(date):
     # Check if date is valid
-    today = today_db().split('-')
-    value = date.split('-')
-
-    if value[0] < today[0]:
-        return True
-    elif value[0] == today[0]:
-        if value[1] < today[1]:
-            return True
-        elif value[1] == today[1]:
-            if value[2] <= today[2]:
-                return True
-            else:
-                return False
-        else:
-            return False
-    else:
-        return False
+    today = datetime.datetime.today()
+    value = datetime.datetime.strptime(date, '%Y-%m-%d')
+    return False if value > today else True
 
 
 def check_banks():
@@ -70,7 +56,7 @@ def create_currencies():
         )
 
 
-def get_best_sell(rates, currency):
+def get_best_sell(rates):
     # get first element as best, and compare with rest rates[1:]
     best_rates = [rates[0]]
     for rate in rates[1:]:
@@ -82,7 +68,7 @@ def get_best_sell(rates, currency):
     return best_rates
 
 
-def get_best_buy(rates, currency):
+def get_best_buy(rates):
     # get first element as best, and compare with rest rates[1:]
     best_rates = [rates[0]]
     for rate in rates[1:]:
@@ -97,7 +83,6 @@ def get_best_buy(rates, currency):
 def last_day(date):
     new_date = datetime.date.fromisoformat(date) - datetime.timedelta(days=1)
     return new_date.isoformat()
-
 
 
 waiting_msg = {'processing': 'Wait while get data'}

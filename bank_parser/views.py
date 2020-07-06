@@ -4,7 +4,6 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from django.db.utils import OperationalError
 
 from .serializers import BankSerializer, CurrentRatesSerializer, RatesHistorySerializer
 from .tasks import parse_bank, save_data
@@ -15,14 +14,13 @@ from .utils import (today_db,
                     create_currencies,
                     get_best_buy,
                     get_best_sell,
-                    waiting_msg,
-                    last_day)
+                    waiting_msg,)
 
 
 class ParseBankView(GenericAPIView):
     serializer_class = BankSerializer
-    permission_classes = ([IsAuthenticated])
-    # permission_classes = ([AllowAny])
+    # permission_classes = ([IsAuthenticated])
+    permission_classes = ([AllowAny])
     authentication_classes = ([JWTAuthentication])
 
     queryset = Bank.objects.all()
@@ -51,7 +49,7 @@ class ParseBankView(GenericAPIView):
                     have_data = False
                     try:
                         rates = parse_bank.apply_async((bank.short_name, date), queue='parse_data')
-                        save_data.apply_async((date, rates.get()), queue='save_data')
+                        save_data.apply_async((rates.get(), date), queue='save_data')
 
                     except TypeError:
                         continue
@@ -89,7 +87,8 @@ class BankListView(GenericAPIView):
 
 class BestPriceView(GenericAPIView):
     serializer_class = RatesHistorySerializer
-    permission_classes = ([IsAuthenticated])
+    permission_classes = ([AllowAny])
+    # permission_classes = ([IsAuthenticated])
     authentication_classes = ([JWTAuthentication])
 
     date = ''
@@ -105,8 +104,8 @@ class BestPriceView(GenericAPIView):
         currency = get_object_or_404(Currency, abbr__iexact=abbr)
         rates = self.queryset.filter(currency=currency)
 
-        best_sell = CurrentRatesSerializer(get_best_sell(rates, currency), many=True).data
-        best_buy = CurrentRatesSerializer(get_best_buy(rates, currency), many=True).data
+        best_sell = CurrentRatesSerializer(get_best_sell(rates), many=True).data
+        best_buy = CurrentRatesSerializer(get_best_buy(rates), many=True).data
         answer = {
             'best_sell': best_sell,
             'best_buy': best_buy
