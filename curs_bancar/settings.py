@@ -26,7 +26,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-ALLOWED_HOSTS = ['0.0.0.0', '127.0.0.1', '192.168.88.134', 'localhost']
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -39,8 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'rest_framework',
-    'rest_framework_swagger',
     'django_celery_beat',
+    'drf_yasg',
 
     'bank_parser',
 
@@ -149,6 +149,17 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+# Swagger
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Token': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    }
+}
+
 RABBIT_CREDENTIALS = os.getenv('RABBIT_CREDENTIALS')
 RABBIT_HOST = os.getenv('RABBIT_HOST')
 RABBIT_PORT = os.getenv('RABBIT_PORT')
@@ -157,3 +168,9 @@ CELERY_BROKER_URL = 'amqp://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + R
 CELERY_RESULT_BACKEND = 'rpc://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT
 
 CELERY_CREATE_MISSING_QUEUES = True
+
+
+ELASTIC = {
+    'hosts': 'es-internship.devebs.net',
+    'index_prefix': 'curs_bancar'
+}

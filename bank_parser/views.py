@@ -1,4 +1,3 @@
-from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -6,7 +5,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
 from .serializers import BankSerializer, CurrentRatesSerializer, RatesHistorySerializer
-from .tasks import parse_bank, save_data
+from .tasks import indexation_es_rateshistory, parse_data
 from .models import Bank, Currency, RatesHistory
 from .utils import (today_db,
                     verify_date,
@@ -14,13 +13,16 @@ from .utils import (today_db,
                     create_currencies,
                     get_best_buy,
                     get_best_sell,
-                    waiting_msg,)
+                    waiting_msg,
+                    have_rates,
+                    best_rates, )
 
 
 class ParseBankView(GenericAPIView):
+    """Parse or get rates for selected bank and date"""
     serializer_class = BankSerializer
-    # permission_classes = ([IsAuthenticated])
-    permission_classes = ([AllowAny])
+    permission_classes = ([IsAuthenticated])
+    # permission_classes = ([AllowAny])
     authentication_classes = ([JWTAuthentication])
 
     queryset = Bank.objects.all()
@@ -28,8 +30,12 @@ class ParseBankView(GenericAPIView):
     def get(self, request, short_name):
         date = (request.GET.get('date') or today_db())
 
-        if not verify_date(date):
-            return Response({'error': 'can\'t predict', 'date': date})
+        #
+        try:
+            if not verify_date(date):
+                return Response({'error': 'can\'t predict', 'date': date})
+        except ValueError:
+            return Response({'error': 'Check the date format YYYY-MM-DD'})
 
         # fill banks if not exists
         check_banks()
@@ -37,36 +43,35 @@ class ParseBankView(GenericAPIView):
         if not Currency.objects.all().exists():
             create_currencies()
 
-        try:
-            public_only = True
-            if not short_name == 'all':
-                self.queryset = Bank.objects.filter(short_name__iexact=short_name)
-                public_only = False
+        # try:
+        public_only = True
+        if not short_name == 'all':
+            self.queryset = Bank.objects.filter(short_name__iexact=short_name)
+            public_only = False
 
-            have_data = True
-            for bank in self.queryset.all():
-                if not RatesHistory.objects.filter(date=date, bank=bank).exists():
-                    have_data = False
-                    try:
-                        rates = parse_bank.apply_async((bank.short_name, date), queue='parse_data')
-                        save_data.apply_async((rates.get(), date), queue='save_data')
+        wait_flag = False
+        for bank in self.queryset.all():
 
-                    except TypeError:
-                        continue
-                    except AttributeError:
-                        return Response({'error': 'Data not found'})
+            if not have_rates(bank, date):
+                wait_flag = True
+                try:
+                    parse_data.apply_async((bank.short_name, date))
+                except TypeError:
+                    pass
+                except AttributeError:
+                    return Response({'error': 'Data not found'})
 
+        if wait_flag:
             # Return response without waiting for task finishing
-            if not have_data:
-                return Response(waiting_msg)
+            waiting_msg['date'] = date
+            return Response(waiting_msg)
 
-            if public_only:
-                rates = RatesHistory.objects.filter(date=date, bank__is_public=public_only, bank__in=self.queryset)
-            else:
-                rates = RatesHistory.objects.filter(date=date, bank__in=self.queryset)
-
-        except ValidationError:
-            return Response({'error': 'Check the date format YYYY-MM-DD'})
+        if public_only:
+            rates = RatesHistory.objects.filter(date=date, bank__is_public=public_only, bank__in=self.queryset).exclude(
+                currency__abbr='empty')
+        else:
+            rates = RatesHistory.objects.filter(date=date, bank__in=self.queryset).exclude(
+                currency__abbr='empty')
 
         serializer = CurrentRatesSerializer(rates, many=True)
 
@@ -74,6 +79,7 @@ class ParseBankView(GenericAPIView):
 
 
 class BankListView(GenericAPIView):
+    """List of all banks"""
     serializer_class = BankSerializer
     permission_classes = ([IsAuthenticated])
     authentication_classes = ([JWTAuthentication])
@@ -86,9 +92,10 @@ class BankListView(GenericAPIView):
 
 
 class BestPriceView(GenericAPIView):
+    """Filter Rates by by best prices sell/buy"""
     serializer_class = RatesHistorySerializer
-    permission_classes = ([AllowAny])
-    # permission_classes = ([IsAuthenticated])
+    # permission_classes = ([AllowAny])
+    permission_classes = ([IsAuthenticated])
     authentication_classes = ([JWTAuthentication])
 
     date = ''
@@ -111,3 +118,36 @@ class BestPriceView(GenericAPIView):
             'best_buy': best_buy
         }
         return Response(answer)
+
+
+class ElasticParseView(GenericAPIView):
+    """Fill elastic db with data"""
+    serializer_class = BankSerializer
+    permission_classes = ([IsAuthenticated])
+    # permission_classes = ([AllowAny])
+    authentication_classes = ([JWTAuthentication])
+
+    queryset = ''
+
+    def get(self, request):
+        indexation_es_rateshistory.apply_async()
+        return Response(waiting_msg)
+
+
+class FastSeacrhView(GenericAPIView):
+    """
+    Try elastic queries here
+    Find best rates sell/buy for selected currency
+    """
+    serializer_class = BankSerializer
+    permission_classes = ([IsAuthenticated])
+    # permission_classes = ([AllowAny])
+    authentication_classes = ([JWTAuthentication])
+
+    queryset = ''
+
+    def get(self, request, abbr):
+        return Response({
+            'best_sell': best_rates('rate_sell', abbr),
+            'best_buy': best_rates('rate_buy', abbr),
+        })

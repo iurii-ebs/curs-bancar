@@ -27,5 +27,15 @@ class RatesHistory(models.Model):
     rate_buy = models.FloatField()
     date = models.DateField(db_index=True, default=datetime.date.today().strftime('%Y-%m-%d'))
 
+    def es_doc(self):
+        return {
+            "id": self.id,
+            "bank": self.bank_id,
+            "currency": self.currency_id,
+            "rate_sell": self.rate_sell,
+            "rate_buy": self.rate_buy,
+            "date": self.date
+        }
+
     def __str__(self):
         return f"{self.bank} \t {self.currency} \t {self.rate_sell} \t {self.rate_buy} \t {self.date}"

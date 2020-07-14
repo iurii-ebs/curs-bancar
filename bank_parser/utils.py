@@ -1,4 +1,8 @@
-from .models import Bank, Currency
+from time import sleep
+
+from django.db import OperationalError
+
+from .models import Bank, Currency, RatesHistory
 
 import datetime
 import requests
@@ -54,6 +58,10 @@ def create_currencies():
             abbr=currency.find("charcode").string,
             name=currency.find("name").string
         )
+    Currency.objects.create(
+        abbr='empty',
+        name='no data'
+    )
 
 
 def get_best_sell(rates):
@@ -83,6 +91,77 @@ def get_best_buy(rates):
 def last_day(date):
     new_date = datetime.date.fromisoformat(date) - datetime.timedelta(days=1)
     return new_date.isoformat()
+
+
+def make_empty_rate(short_name, date=today_db()):
+    RatesHistory.objects.get_or_create(
+        currency=Currency.objects.get(abbr='empty'),
+        bank=Bank.objects.get(short_name__iexact=short_name),
+        rate_sell='0',
+        rate_buy='0',
+        date=date
+    )
+
+
+def have_rates(bank, date=today_db()):
+    # Check DB in loop to catch DB lock exception and repeat query
+    while True:
+        try:
+            return RatesHistory.objects.filter(date=date, bank=bank).exists()
+        except OperationalError:
+            sleep(1)
+
+
+def best_rates(act, abbr):
+    """Find best rates for elasticsearch"""
+    from curs_bancar.elastic import es
+    order = 'asc' if act == 'rate_buy' else 'desc'
+    currency = Currency.objects.get(abbr__iexact=abbr)
+    curr_id = currency.id
+    bnm = Bank.objects.get(short_name__iexact='bnm')
+    bnm_id = bnm.id
+
+    body = {
+        "sort": [
+            {act: {"order": order}},
+
+        ],
+        "query": {
+            "bool": {
+                "must": [
+                    {
+                        "term": {
+                            "currency": curr_id,
+                        }
+                    },
+                    {
+                        "term": {
+                            "date": today_db(),
+                        }
+                    },
+                ],
+                "must_not": [
+                    {
+                        "term": {
+                            "bank": bnm_id
+                        }
+                    }
+                ]
+            }
+        }
+    }
+    queryset = es.search(index="curs_bancar",
+                         doc_type="rates-history",
+                         body=body,
+                         )
+
+    # Replace ID with string values
+    result = es.get_source(queryset[0][0])
+    short_name = Bank.objects.get(id=result['bank']).short_name
+    abbr = Currency.objects.get(id=result['currency']).abbr
+    result['bank'] = short_name
+    result['currency'] = abbr
+    return result
 
 
 waiting_msg = {'processing': 'Wait while get data'}

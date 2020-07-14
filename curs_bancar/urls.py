@@ -1,10 +1,27 @@
 from django.contrib import admin
 from django.urls import path, include
+from drf_yasg import openapi
+from drf_yasg.views import get_schema_view
+from rest_framework.permissions import AllowAny
+
+
+schema_view = get_schema_view(
+    openapi.Info(
+        title="Banks parser",
+        default_version='v1',
+        description="documentation",
+    ),
+    validators=['ssv'],
+    public=True,
+    permission_classes=[AllowAny]
+)
 
 
 urlpatterns = [
-    # path('', schema_view),
+    path('', schema_view.with_ui('swagger')),
     path('admin/', admin.site.urls),
     path('banks/', include('bank_parser.urls')),
     path('api/user/', include('users.urls')),
 ]
+
+

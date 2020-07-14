@@ -15,9 +15,9 @@ app.conf.timezone = 'Europe/Chisinau'
 app.conf.beat_schedule = {
     'daily_parsing': {
         'task': 'bank_parser.tasks.parse_all_beat',
-        'schedule': crontab(minute=30, hour=9),
-        # 'schedule': crontab(),
-        'args': ()
+        'schedule': crontab(minute=30, hour=8),
+        # 'schedule': 120,
+        'args': []
     },
 }
 
