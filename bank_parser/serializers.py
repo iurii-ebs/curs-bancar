@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Bank, Currency, RatesHistory
+from bank_parser.models import Bank, Currency, RatesHistory
 
 
 class BankSerializer(serializers.ModelSerializer):

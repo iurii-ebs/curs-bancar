@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from bs4 import BeautifulSoup
 import requests
 
-from .models import Bank
+from bank_parser.models import Bank
 
 
 class Parser(ABC):

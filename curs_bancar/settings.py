@@ -95,23 +95,17 @@ WSGI_APPLICATION = 'curs_bancar.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-#         'NAME': 'curs_bancar',
-#         'USER': os.getenv('DB_USER'),
-#         'PASSWORD': os.getenv('DB_PASSWORD'),
-#         'HOST': os.getenv('DB_HOST'),
-#         'PORT': '5432',
-#     }
-# }
-
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': os.getenv('POSTGRES_NAME'),
+        'USER': os.getenv('POSTGRES_USER'),
+        'PASSWORD': os.getenv('POSTGRES_PASS'),
+        'HOST': os.getenv('POSTGRES_HOST'),
+        'PORT': os.getenv('POSTGRES_PORT'),
     }
 }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
@@ -163,9 +157,10 @@ SWAGGER_SETTINGS = {
 RABBIT_CREDENTIALS = os.getenv('RABBIT_CREDENTIALS')
 RABBIT_HOST = os.getenv('RABBIT_HOST')
 RABBIT_PORT = os.getenv('RABBIT_PORT')
+RABIT_VIRTUAL_HOST = os.getenv('RABIT_VIRTUAL_HOST')
 
-CELERY_BROKER_URL = 'amqp://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT
-CELERY_RESULT_BACKEND = 'rpc://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT
+CELERY_BROKER_URL = 'amqp://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT + '/' + RABIT_VIRTUAL_HOST
+CELERY_RESULT_BACKEND = 'rpc://' + RABBIT_CREDENTIALS + '@' + RABBIT_HOST + ':' + RABBIT_PORT + '/' + RABIT_VIRTUAL_HOST
 
 CELERY_CREATE_MISSING_QUEUES = True
 
