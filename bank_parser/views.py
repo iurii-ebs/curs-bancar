@@ -1,29 +1,28 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
-from .serializers import BankSerializer, CurrentRatesSerializer, RatesHistorySerializer
-from .tasks import indexation_es_rateshistory, parse_data
-from .models import Bank, Currency, RatesHistory
-from .utils import (today_db,
-                    verify_date,
-                    check_banks,
-                    create_currencies,
-                    get_best_buy,
-                    get_best_sell,
-                    waiting_msg,
-                    have_rates,
-                    best_rates, )
+from bank_parser.serializers import BankSerializer, CurrentRatesSerializer, RatesHistorySerializer
+from bank_parser.tasks import indexation_es_rateshistory, parse_data
+from bank_parser.models import Bank, Currency, RatesHistory
+from bank_parser.utils import (today_db,
+                               verify_date,
+                               check_banks,
+                               create_currencies,
+                               get_best_buy,
+                               get_best_sell,
+                               waiting_msg,
+                               have_rates,
+                               best_rates, )
 
 
 class ParseBankView(GenericAPIView):
     """Parse or get rates for selected bank and date"""
     serializer_class = BankSerializer
-    permission_classes = ([IsAuthenticated])
-    # permission_classes = ([AllowAny])
-    authentication_classes = ([JWTAuthentication])
+    permission_classes = (AllowAny,)
+    authentication_classes = (JWTAuthentication,)
 
     queryset = Bank.objects.all()
 
@@ -55,7 +54,7 @@ class ParseBankView(GenericAPIView):
             if not have_rates(bank, date):
                 wait_flag = True
                 try:
-                    parse_data.apply_async((bank.short_name, date))
+                    parse_data(bank.short_name, date)
                 except TypeError:
                     pass
                 except AttributeError:
@@ -81,8 +80,8 @@ class ParseBankView(GenericAPIView):
 class BankListView(GenericAPIView):
     """List of all banks"""
     serializer_class = BankSerializer
-    permission_classes = ([IsAuthenticated])
-    authentication_classes = ([JWTAuthentication])
+    permission_classes = (AllowAny,)
+    authentication_classes = (JWTAuthentication,)
 
     queryset = Bank.objects.all()
 
@@ -94,9 +93,8 @@ class BankListView(GenericAPIView):
 class BestPriceView(GenericAPIView):
     """Filter Rates by by best prices sell/buy"""
     serializer_class = RatesHistorySerializer
-    # permission_classes = ([AllowAny])
-    permission_classes = ([IsAuthenticated])
-    authentication_classes = ([JWTAuthentication])
+    permission_classes = (AllowAny,)
+    authentication_classes = (JWTAuthentication,)
 
     date = ''
 
@@ -123,14 +121,13 @@ class BestPriceView(GenericAPIView):
 class ElasticParseView(GenericAPIView):
     """Fill elastic db with data"""
     serializer_class = BankSerializer
-    permission_classes = ([IsAuthenticated])
-    # permission_classes = ([AllowAny])
-    authentication_classes = ([JWTAuthentication])
+    permission_classes = (AllowAny,)
+    authentication_classes = (JWTAuthentication,)
 
     queryset = ''
 
     def get(self, request):
-        indexation_es_rateshistory.apply_async()
+        indexation_es_rateshistory()
         return Response(waiting_msg)
 
 
@@ -140,9 +137,8 @@ class FastSeacrhView(GenericAPIView):
     Find best rates sell/buy for selected currency
     """
     serializer_class = BankSerializer
-    permission_classes = ([IsAuthenticated])
-    # permission_classes = ([AllowAny])
-    authentication_classes = ([JWTAuthentication])
+    permission_classes = (AllowAny,)
+    authentication_classes = (JWTAuthentication,)
 
     queryset = ''
 

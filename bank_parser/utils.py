@@ -2,7 +2,7 @@ from time import sleep
 
 from django.db import OperationalError
 
-from .models import Bank, Currency, RatesHistory
+from bank_parser.models import Bank, Currency, RatesHistory
 
 import datetime
 import requests
