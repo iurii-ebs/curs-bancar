@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import ParseBankView, BankListView, BestPriceView, ElasticParseView, FastSeacrhView
+from bank_parser.views import ParseBankView, BankListView, BestPriceView, ElasticParseView, FastSeacrhView
 
 urlpatterns = [
     path('', BankListView.as_view(), name='bank_list_url'),
