@@ -22,14 +22,12 @@ class ParseBankView(GenericAPIView):
     """Parse or get rates for selected bank and date"""
     serializer_class = BankSerializer
     permission_classes = (AllowAny,)
-    authentication_classes = (JWTAuthentication,)
 
     queryset = Bank.objects.all()
 
     def get(self, request, short_name):
         date = (request.GET.get('date') or today_db())
 
-        #
         try:
             if not verify_date(date):
                 return Response({'error': 'can\'t predict', 'date': date})
