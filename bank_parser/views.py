@@ -5,7 +5,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from bank_parser.models import Bank, RatesHistory
 from bank_parser.serializers import CurrentRatesSerializer
-from bank_parser.utils import (today_db)
+
+from bank_parser.utils import today_db
 
 
 class ParseBankView(GenericAPIView):
