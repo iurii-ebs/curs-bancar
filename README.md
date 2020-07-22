@@ -1,17 +1,23 @@
-Currency parser
-banks short names - MAIB, MICB, Victoria, Mobias, BNM
+### Currency parser
+### banks short names - MAIB, MICB, Mobias, BNM
 
-endpoints:
+### endpoints:
 
-banks/get/"bank short name"/ - parse data from selected bank
+### parse data from all banks
+```
+banks/get/all/
+```
 
-banks/get/all/ - parse data from all (5) banks
+### parse data for a specific date
+```
+banks/get/all/?date=2020-07-22 
+```
 
-banks/best/"currency abbr"/ - find best selling and buy prices, returns JSON with 2 lists
-
-api/user/register/        Register new user 
-aip/user/token/           Get Authorization Bearer Token
-
-
-GET request data {'date': 'YYYY-MM-DD'} will return info for selected date
-
+### Register new user 
+```
+api/user/register/        
+```
+### Get Authorization Bearer Token
+```
+aip/user/token/           
+```

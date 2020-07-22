@@ -1,11 +1,8 @@
-from django.db.utils import OperationalError
+from celery import shared_task
 
 from bank_parser.models import RatesHistory, Bank, Currency
-from celery import shared_task
 from bank_parser.parser import Parser
 from bank_parser.utils import today_db, check_banks, create_currencies, make_empty_rate
-
-from curs_bancar.elastic import es
 
 
 @shared_task(name='parse_data')
@@ -41,15 +38,3 @@ def parse_all_beat():
     for bank in queryset:
         if not RatesHistory.objects.filter(bank=bank, date=today_db()).exists():
             parse_data.delay(bank.short_name, today_db())
-
-
-@shared_task(name='indexation_es_rateshistory')
-def indexation_es_rateshistory():
-    queryset = RatesHistory.objects.all()
-    for index, doc in enumerate(queryset):
-        es.add_document(
-            index='curs_bancar',
-            doc_type='rates-history',
-            document=doc.es_doc(),
-            document_id=doc.id
-        )
