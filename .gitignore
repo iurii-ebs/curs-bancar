@@ -8,6 +8,11 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+static/admin/
+static/drf-yasg/
+static/doc/
+static/notifications/
+static/rest_framework/
 build/
 develop-eggs/
 dist/
@@ -95,7 +100,10 @@ ipython_config.py
 __pypackages__/
 
 # Celery stuff
-celerybeat-schedule
+celerybeat-schedule.db
+celerybeat-schedule.bak
+celerybeat-schedule.dir
+celerybeat-schedule.dat
 celerybeat.pid
 
 # SageMath parsed files

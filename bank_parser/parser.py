@@ -1,8 +1,8 @@
-from django.shortcuts import get_object_or_404
-
 from abc import ABC, abstractmethod
-from bs4 import BeautifulSoup
+
 import requests
+from bs4 import BeautifulSoup
+from django.shortcuts import get_object_or_404
 
 from bank_parser.models import Bank
 
