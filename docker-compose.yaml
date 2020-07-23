@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    restart: always
+    command: gunicorn -w 1 -b 0.0.0.0:8017 config.wsgi
+    networks:
+      docker_network_custom:
+        ipv4_address: 172.18.1.4
+    volumes:
+      - .:/usr/app/
+    ports:
+      - 8017:8017
+  celery:
+    build: .
+    restart: always
+    command: celery -A config worker --loglevel=INFO --concurrency=10 -n worker_bancar
+    networks:
+      docker_network_custom:
+        ipv4_address: 172.18.1.5
+    volumes:
+      - .:/usr/app/
+  celery-beat:
+    build: .
+    restart: always
+    command: celery -A config beat --loglevel=INFO
+    networks:
+      docker_network_custom:
+        ipv4_address: 172.18.1.6
+    volumes:
+      - .:/usr/app/
+
+networks:
+  docker_network_custom:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.0.0/16
