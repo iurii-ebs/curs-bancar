@@ -25,6 +25,6 @@ app.conf.timezone = settings.TIME_ZONE
 app.conf.beat_schedule = {
     'daily_parsing': {
         'task': 'parse_all_beat',
-        'schedule': crontab(minute=52, hour=11, day_of_week='1-5')
+        'schedule': crontab(minute=30, hour=9, day_of_week='1-5')
     },
 }
